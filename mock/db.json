@@ -1,24 +1,19 @@
 {
   "todo": [
     {
-      "id": 1,
-      "name": "item1",
-      "num": 10
+      "todoItem": "タスク1",
+      "isTodoFinish": false,
+      "id": 1
     },
     {
-      "name": "item5",
-      "num": 3,
+      "todoItem": "タスク2",
+      "isTodoFinish": false,
+      "id": 2
+    },
+    {
+      "todoItem": "タスク3",
+      "isTodoFinish": false,
       "id": 3
-    },
-    {
-      "name": "item4",
-      "num": 0,
-      "id": 4
-    },
-    {
-      "name": "タスク１",
-      "num": 0,
-      "id": 5
     }
   ]
 }
