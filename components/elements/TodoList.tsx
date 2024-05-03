@@ -1,199 +1,162 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useForm, useFieldArray, useWatch, Control } from 'react-hook-form';
-import * as zod from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import * as zod from "zod";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
-// ダミーデータ（初期値）
-export const dummyData = [
-  {
-    name: 'item1',
-    num: 10,
-  },
+import { EditTodoItemRow } from "./EditTodoItemRow";
 
-  {
-    name: 'item2',
-    num: 0,
-  },
-  {
-    name: 'item3',
-    num: 3,
-  },
-];
-
-// バリデーションルール
-const schema = zod.object({
-  todo: zod.array(
-    zod.object({
-      name: zod.string().min(1, { message: '入力して下さい。' }),
-      num: zod.number(),
-    })
-  ),
+const TodoItemSchema = zod.object({
+  todoItem: zod.string().min(1, { message: "入力して下さい。" }),
+  isTodoFinish: zod.boolean(),
 });
 
-// タイプの設定
-type FormInputs = zod.infer<typeof schema>;
+// APIURL
+const apiURL = "http://localhost:3001/todo/";
+
+type TodoItem = zod.infer<typeof TodoItemSchema> & { id?: number };
 
 export const TodoList = () => {
-  const {
-    handleSubmit,
-    register,
-    control,
-    trigger,
-    getValues,
-    setValue,
-    formState: { errors, isValid },
-  } = useForm<FormInputs>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      todo: dummyData,
-    },
-    mode: 'onSubmit',
-    reValidateMode: 'onSubmit',
-  });
-  const { fields, append, remove, update } = useFieldArray({
-    name: 'todo',
-    control,
-  });
+  // タスク一覧を管理（State）
+  const [todoItems, setTodoItems] = useState<TodoItem[]>();
+  // 編集するタスクのIDを管理（State）
+  const [editItemId, setEditItemId] = useState<TodoItem["id"] | "newItem">();
 
-  // 送信時のイベント
-  const onSubmit = async (data: FormInputs) => {
-    console.log(data);
-    // テーブルを全体更新したいが、オプションが必要なので存在しない値を設定
-    // TODO：そもそもAPIにデータを送信するなら必要ない処理？？
-    update(-1, { name: fields[0].name, num: fields[0].num });
-    setEditing('');
-    // reset();
+  // jsonを取得してStateに格納
+  const fetchTodoItems = async () => {
+    const { data } = await axios.get(apiURL);
+    setTodoItems(data);
   };
-  // 編集の可否を管理
-  const [editing, setEditing] = useState('');
-  // 編集前のデータを管理
-  const [inputData, setInputData] = useState<FormInputs>({
-    todo: dummyData,
-  });
-  // 新しい項目を追加した時の処理
+
   useEffect(() => {
-    if (editing === 'newEdit') {
-      setEditing(fields[fields.length - 1].id);
-    }
-    setInputData({ todo: fields.map((field) => field) });
-  }, [fields, editing]);
+    // 初期データの取得
+    fetchTodoItems();
+  }, []);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <table style={{ width: '100%' }}>
-        <tbody>
-          {fields.map((field: any, index: number) => (
-            <tr key={index}>
-              <td style={{ width: 'auto' }}>
-                {editing !== field.id ? (
-                  <>{field.name}</>
+    <table style={{ width: "100%" }}>
+      <tbody>
+        <tr>
+          <th>No.</th>
+          <th>タスク</th>
+          <th>完了</th>
+          <th></th>
+        </tr>
+        {todoItems?.map((item) =>
+          editItemId === item.id ? (
+            <EditTodoItemRow
+              key={item.id}
+              item={item}
+              onCompleted={async (isUpdated) => {
+                // 更新していたら一覧を更新してから編集状態を解除
+                if (isUpdated) {
+                  await fetchTodoItems();
+                }
+                setEditItemId(undefined);
+              }}
+              apiURL = {apiURL}
+            />
+          ) : (
+            <tr key={item.id}>
+              <td style={{width: "80px"}}>{item.id}</td>
+              <td>
+                {item.isTodoFinish ? (
+                  <span style={{ textDecoration: "line-through", color:"red" }}>
+                    {item.todoItem}
+                  </span>
                 ) : (
-                  <>
-                    <input
-                      style={{ width: '100%' }}
-                      {...register(`todo.${index}.name` as const)}
-                      defaultValue={field.name}
-                    />
-
-                    {errors.todo?.[index]?.name?.message && (
-                      <p style={{ color: 'red' }}>
-                        {errors.todo?.[index]?.name?.message}
-                      </p>
-                    )}
-                  </>
+                  `${item.todoItem}`
                 )}
               </td>
-              <td style={{ width: 'auto' }}>{field.num}</td>
-
-              <td style={{ width: '220px', verticalAlign: 'top' }}>
-                {/* 削除した時、APIにデータを送信する予定 */}
-                {/* TODO:タイミングによってsubmitが効いていないように見える */}
-                {editing !== field.id ? (
-                  <button
-                    type="submit"
-                    disabled={editing !== ''}
-                    onClick={() => {
-                      if (field.num > 0) {
-                        alert('在庫がある商品は削除できません。');
-                        return;
-                      }
-                      const deleteDialog = confirm(
-                        `「${field.name}」を削除しますか？`
+              <td style={{width: "80px"}}>
+                <input
+                  type="checkbox"
+                  checked={item.isTodoFinish}
+                  // 完了チェックを変更したらデータ更新
+                  onChange={async (e) => {
+                    item.isTodoFinish = e.target.checked;
+                    await axios.put(
+                      `${apiURL}${item.id}`,
+                      item
+                    );
+                    await fetchTodoItems();
+                  }}
+                />
+              </td>
+              <td style={{ width: "220px", verticalAlign: "top" }}>
+                <button
+                  type="submit"
+                  disabled={editItemId !== undefined}
+                  onClick={async () => {
+                    if (item.isTodoFinish === false) {
+                      alert("完了していないタスクは削除できません。");
+                      return;
+                    }
+                    const deleteDialog = confirm(
+                      `「${item.todoItem}」を削除しますか？`
+                    );
+                    if (deleteDialog) {
+                      await axios.delete(
+                        `${apiURL}${item.id}`
                       );
-                      if (deleteDialog) {
-                        remove(index);
-                      }
-                    }}
-                  >
-                    削除
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      // 新しく追加した項目をキャンセルした場合は削除する
-                      if (field.name === '') {
-                        remove(index);
-                      } else {
-                        // 更新前の値をセット
-                        setValue('todo', inputData.todo);
-                      }
-                      setEditing('');
-                    }}
-                  >
-                    キャンセル
-                  </button>
-                )}
-
-                {editing !== field.id ? (
-                  <button
-                    type="button"
-                    disabled={editing !== ''}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setEditing(field.id);
-                    }}
-                  >
-                    変更
-                  </button>
-                ) : (
-                  // 登録した時、APIにデータを送信する予定
-                  <button type="submit">登録</button>
-                )}
+                      await fetchTodoItems();
+                    }
+                  }}
+                >
+                  削除
+                </button>
+                <button
+                  type="button"
+                  disabled={editItemId !== undefined}
+                  onClick={(e) => {
+                    setEditItemId(item.id);
+                  }}
+                >
+                  変更
+                </button>
               </td>
             </tr>
-          ))}
-          <tr>
-            <td></td>
-            <td></td>
-            <td>
-              <button
-                type="button"
-                disabled={editing !== ''}
-                style={{
-                  marginTop: '20px',
-                  marginLeft: 'auto',
-                  display: 'block',
-                  width: '100%',
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  setEditing('newEdit');
-                  append({
-                    name: '',
-                    num: 0,
-                  });
-                }}
-              >
-                追加
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </form>
+          )
+        )}
+        {/* 新しいtodoを追加 */}
+        {editItemId === "newItem" && (
+          <EditTodoItemRow
+            item={{
+              todoItem: "",
+              isTodoFinish: false,
+            }}
+            onCompleted={async (isUpdated) => {
+              if (isUpdated) {
+                await fetchTodoItems();
+              }
+              setEditItemId(undefined);
+            }}
+            apiURL={apiURL}
+          />
+        )}
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td>
+            <button
+              type="button"
+              disabled={editItemId !== undefined}
+              style={{
+                marginTop: "20px",
+                marginLeft: "auto",
+                display: "block",
+                width: "100%",
+              }}
+              onClick={(event) => {
+                setEditItemId("newItem");
+              }}
+            >
+              追加
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 };

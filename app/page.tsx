@@ -1,11 +1,11 @@
 import Image from "next/image";
-import { ImprovedTodoList } from "@/components/elements/ImprovedTodoList";
+import { TodoList } from "@/components/elements/TodoList";
 
 export default function Home() {
   return (
     <main>
-      <h2>todoサンプル（react-hook-form）</h2>
-      <ImprovedTodoList />
+      <h2>ToDoサンプル（React-Hook-Form）</h2>
+      <TodoList />
     </main>
   );
 }
